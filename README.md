@@ -1,5 +1,7 @@
 Convert your Android device into USB keyboard/mouse, control your PC from your Android device remotely, including BIOS/bootloader.
 
+For newer Kernel versions (>= 3.19) the patch is not anymore required and can be replaced by ConfigFS ([USB Gadget Tool](https://github.com/tejado/android-usb-gadget)).
+
 #### Apps & tools using android-keyboard-gadget:
 * [USB Keyboard](https://play.google.com/store/apps/details?id=remote.hid.keyboard.client)
 * hid-gadget-test
@@ -372,7 +374,18 @@ You can open these two files, using open() system call,
 and write raw keyboard/mouse events there, using write() system call,
 which will be sent through USB cable to your PC.
 
-Keyboard event is an array of 8 byte length, first byte is a bitmask of currently pressed modifier keys:
+A short description of the events format is provided below. For a more comprehensive overview see the [OS Dev Wiki](https://wiki.osdev.org/USB_Human_Interface_Devices#USB_keyboard).
+
+Keyboard events
+---------------
+Keyboard events are 8 bytes long:
+| Offset | Length | Field |
+| --- | --- | --- |
+| 0 | 1 byte | Modifier keys bitmask |
+| 1 | 1 byte | Reserved padding |
+| 2 | 6 bytes | Pressed keys in the order they were pressed in |
+_______________________________________________________________
+First byte is a bitmask of currently pressed modifier keys:
 
 	typedef enum {
 		LCTRL = 0x1,
@@ -384,16 +397,22 @@ Keyboard event is an array of 8 byte length, first byte is a bitmask of currentl
 		RALT = 0x40,
 		RSUPER = 0x80, // Windows key
 	} ModifierKeys_t;
+_______________________________________________________________
+The second byte is reserved and usually ignored by software.
+_______________________________________________________________
+Remaining 6 bytes are a list of all other keys currently pressed, one byte for one key, or 0 if no key is pressed.
+A handy table with key scancodes can be found [here](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-14.html).
 
-Remaining 7 bytes is a list of all other keys currently pressed, one byte for one key, or 0 if no key is pressed.
-Consequently, the maximum amount of keys that may be pressed at the same time is 7, excluding modifier keys.
-
-Professional or 'gamer' USB keyboards report several keyboard HID descriptors, which creates several keyboard devices in host PC,
-to overcome that 7-key limit.
-
-The scancode table for each key is available [in hid-gadget-test utility](hid-gadget-test/jni/hid-gadget-test.c#L33).
 Extended keys, such as Play/Pause, are not supported, because they require modifying USB descriptor in kernel patch.
 
+Consequently, the maximum amount of keys that may be pressed at the same time is 6, excluding modifier keys.
+Professional or 'gamer' USB keyboards report several keyboard HID descriptors, which creates several keyboard devices in host PC,
+to overcome that 6-key limit.
+
+Note that after writing an event the keys will be held indefinitely, so when finished an empty event should be sent to release all keys.
+
+Mouse events
+------------
 Mouse event is an array of 4 bytes, first byte is a bitmask of currently pressed mouse buttons:
 
 	typedef enum {
